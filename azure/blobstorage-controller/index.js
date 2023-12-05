@@ -1,18 +1,16 @@
 const { 
-  BlobServiceClient, 
-  generateAccountSASQueryParameters, 
-  AccountSASPermissions, 
-  AccountSASServices,
-  AccountSASResourceTypes,
+
   StorageSharedKeyCredential,
-  SASProtocol 
+  ContainerSASPermissions,
+  SASProtocol, 
+  generateBlobSASQueryParameters,
 } = require('@azure/storage-blob');
 require('dotenv').config()
-const {STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY} = process.env;
+const {STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY1, STORAGE_ACCOUNT_KEY2} = process.env;
 
 const constants = {
   accountName: STORAGE_ACCOUNT_NAME,
-  accountKey: STORAGE_ACCOUNT_KEY
+  accountKey: STORAGE_ACCOUNT_KEY2
 };
 
 const sharedKeyCredential = new StorageSharedKeyCredential(
@@ -20,31 +18,23 @@ const sharedKeyCredential = new StorageSharedKeyCredential(
   constants.accountKey
 );
 
-async function createAccountSas() {
-
-  const sasOptions = {
-
-      services: AccountSASServices.parse("btqf").toString(),          // blobs, tables, queues, files
-      resourceTypes: AccountSASResourceTypes.parse("sco").toString(),
-      protocol: SASProtocol.Https, // service, container, object
-      permissions: AccountSASPermissions.parse("rwdlacupiytfx"),          // permissions
+async function createContainerSas(containerName='close-up') {
+    const sasOptions = {
+      containerName,
       startsOn: new Date(),
-      expiresOn: new Date(new Date().valueOf() + (10 * 60 * 1000)),
+      expiresOn: new Date(new Date().valueOf() + 86400000),
+      protocol: SASProtocol.Https,
+      permissions: ContainerSASPermissions.parse("rwlaciytfx")
   };
 
-  const sasToken = generateAccountSASQueryParameters(
-      sasOptions,
-      sharedKeyCredential 
-  ).toString();
 
-  console.log(`sasToken = '${sasToken}'\n`);
-
-  // prepend sasToken with `?`
-  return (sasToken[0] === '?') ? sasToken : `?${sasToken}`;
+  const sasToken = generateBlobSASQueryParameters(sasOptions, sharedKeyCredential).toString();
+  return sasToken;
 }
 
 module.exports = async function (context, req) {
-  const sasToken = await createAccountSas();
+  const sasToken = await createContainerSas(req.query.containerName);
+  // ?sv=2022-11-02&ss=bf&srt=co&sp=rwlaciytfx&se=2023-12-07T02:26:19Z&st=2023-12-05T18:26:19Z&spr=https&sig=%2BdGRz7R3%2Fcv2Z%2FZ0nsewSVvEyN6wZEw17jjfi1EDYpE%3D
   context.res = {
       body: {
           sasToken
