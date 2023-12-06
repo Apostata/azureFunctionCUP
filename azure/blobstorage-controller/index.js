@@ -20,9 +20,6 @@ const {STORAGE_CONNECTION_STRING}= process.env;
       );
   }).join('');
 
-    
-  console.log(permissions);
-
   const container = req.query.containerName || req.body.containerName;
   context.res = {
       body: generateSasToken(STORAGE_CONNECTION_STRING, container, permissions)
