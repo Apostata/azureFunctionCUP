@@ -12,7 +12,7 @@ const {STORAGE_CONNECTION_STRING}= process.env;
   //racwltme - read, add, create, write, list, tag, move, execute
   //racwdxyltmeop - read, add, create, write, delete, delete version, delete, permanent, list, tag, move, execute, ownership, process
   
-  const reqPermissions = (req.query.permissions || req.body.permissions || 'rwl').split('');
+  const reqPermissions = req.body.permissions? (req.body.permissions).split(''): 'rwl';
   const permissionsOrder = ["r", "a", "c", "w", "d", "x", "y", "l", "t", "m", "e", "o", "p"]; 
   const permissions = reqPermissions.sort((a, b) => {
       return (
@@ -20,10 +20,20 @@ const {STORAGE_CONNECTION_STRING}= process.env;
       );
   }).join('');
 
-  const container = req.query.containerName || req.body.containerName;
-  context.res = {
+  const container = req.body?.containerName;
+
+  if(!container || container === ""){
+    context.res = {
+      status: 400,
+      body:{
+        message: "Please pass a containerName in the request body"
+      }
+    };
+  } else{
+    context.res = {
       body: generateSasToken(STORAGE_CONNECTION_STRING, container, permissions)
-  };
+    };   
+  } 
 };
 
 function generateSasToken(connectionString, container, permissions) {
@@ -33,13 +43,14 @@ function generateSasToken(connectionString, container, permissions) {
   let expiryDate = new Date();
   expiryDate.setHours(expiryDate.getHours() + 24);
 
-  const sasToken = generateBlobSASQueryParameters({
-      containerName: container,
-      permissions: ContainerSASPermissions.parse(permissions),
-      expiresOn: expiryDate,
-  }, sharedKeyCredential);
+    const sasToken = generateBlobSASQueryParameters({
+        containerName: container,
+        permissions: ContainerSASPermissions.parse(permissions),
+        expiresOn: expiryDate,
+    }, sharedKeyCredential);
 
-  return {
-      sasToken: sasToken.toString(),
-  };
+    return {
+        sasToken: sasToken.toString(),
+    };
+  
 }
