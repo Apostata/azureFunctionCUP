@@ -1,56 +1,48 @@
-const { 
-
+const {
   StorageSharedKeyCredential,
   ContainerSASPermissions,
-  SASProtocol, 
-  generateBlobSASQueryParameters,
-} = require('@azure/storage-blob');
+  generateBlobSASQueryParameters
+} = require("@azure/storage-blob");
 require('dotenv').config()
-const {STORAGE_ACCOUNT_NAME, STORAGE_ACCOUNT_KEY1, STORAGE_ACCOUNT_KEY2} = process.env;
+const { extractConnectionStringParts } = require('./utils.js');
+const {STORAGE_CONNECTION_STRING}= process.env;
+  module.exports = async function (context, req) {
+  // const permissions = 'racwl';
+  //racwl - read, add, create, write, list
+  //racwltme - read, add, create, write, list, tag, move, execute
+  //racwdxyltmeop - read, add, create, write, delete, delete version, delete, permanent, list, tag, move, execute, ownership, process
+  
+  const reqPermissions = (req.query.permissions || req.body.permissions || 'rwl').split('');
+  const permissionsOrder = ["r", "a", "c", "w", "d", "x", "y", "l", "t", "m", "e", "o", "p"]; 
+  const permissions = reqPermissions.sort((a, b) => {
+      return (
+          permissionsOrder.indexOf(a) - permissionsOrder.indexOf(b)
+      );
+  }).join('');
 
-const constants = {
-  accountName: STORAGE_ACCOUNT_NAME,
-  accountKey: STORAGE_ACCOUNT_KEY2
-};
+    
+  console.log(permissions);
 
-const sharedKeyCredential = new StorageSharedKeyCredential(
-  constants.accountName,
-  constants.accountKey
-);
-
-async function createContainerSas(containerName='close-up') {
-    const sasOptions = {
-      containerName,
-      startsOn: new Date(),
-      expiresOn: new Date(new Date().valueOf() + 86400000),
-      protocol: SASProtocol.Https,
-      permissions: ContainerSASPermissions.parse("rwlaciytfx")
-  };
-
-
-  const sasToken = generateBlobSASQueryParameters(sasOptions, sharedKeyCredential).toString();
-  return sasToken;
-}
-
-module.exports = async function (context, req) {
-  const sasToken = await createContainerSas(req.query.containerName);
-  // ?sv=2022-11-02&ss=bf&srt=co&sp=rwlaciytfx&se=2023-12-07T02:26:19Z&st=2023-12-05T18:26:19Z&spr=https&sig=%2BdGRz7R3%2Fcv2Z%2FZ0nsewSVvEyN6wZEw17jjfi1EDYpE%3D
+  const container = req.query.containerName || req.body.containerName;
   context.res = {
-      body: {
-          sasToken
-      }
+      body: generateSasToken(STORAGE_CONNECTION_STRING, container, permissions)
   };
 };
 
-// Permissions:
-// r: read
-// w: write
-// d: delete
-// l: list
-// f: filter
-// a: add
-// c: create
-// u: update
-// t: tag access
-// p: process - such as process messages in a queue
-// i: set immutability policy
+function generateSasToken(connectionString, container, permissions) {
+  const { accountKey, accountName } = extractConnectionStringParts(connectionString);
+  const sharedKeyCredential = new StorageSharedKeyCredential(accountName, accountKey.toString('base64'));
+
+  let expiryDate = new Date();
+  expiryDate.setHours(expiryDate.getHours() + 24);
+
+  const sasToken = generateBlobSASQueryParameters({
+      containerName: container,
+      permissions: ContainerSASPermissions.parse(permissions),
+      expiresOn: expiryDate,
+  }, sharedKeyCredential);
+
+  return {
+      sasToken: sasToken.toString(),
+  };
+}
